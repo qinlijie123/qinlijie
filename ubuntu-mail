@@ -1,0 +1,272 @@
+FROM ubuntu:14.04
+MAINTAINER qinlijie 1092684135@qq.com
+
+RUN apt-get update
+#RUN apt-get install -y make gcc 
+RUN apt-get install -y ruby \
+    && apt-get install -y zlib1g \
+    && apt-get update -- \
+    && apt-get upgrade -y \ 
+    && apt-get update \
+    && apt-get install -y python-pip \
+    && apt-get install -y openssl* \ 
+    && apt-get install -y lrzsz \
+    && apt-get install -y git \
+    && apt-get install -y openssl \ 
+    && apt-get install -y libssl-dev \ 
+    && apt-get install -y libssl-dev \
+    && apt-get install -y unzip \
+    && apt-get install -y unixodbc-dev \
+    && apt-get install -y freetds-dev \
+    && apt-get install -y zlib1g-dev \
+#安装memcached
+    && apt-get install -y memcached \
+    && apt-get install -y openssh-server supervisor \
+#安装redis
+    && apt-get install -y redis-server 
+RUN mkdir /var/run/sshd 
+RUN echo "root:123456" |chpasswd
+
+RUN sed -i 's/PermitRootLogin without-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+
+# 取消pam的限制，否则用户登录后就被踢出
+RUN sed -ri 's/session required pam_loginuid.so/#session required pam_loginuid.so/g' /etc/pam.d/sshd
+
+#安装nginx
+RUN \
+  apt-get install -y nginx && \
+  rm -rf /var/lib/apt/lists/* && \
+  echo "\ndaemon off;" >> /etc/nginx/nginx.conf && \
+  chown -R www-data:www-data /var/lib/nginx
+
+# Define mountable directories.
+VOLUME ["/etc/nginx/sites-enabled", "/etc/nginx/certs", "/etc/nginx/conf.d", "/var/log/nginx", "/var/www/html"]
+
+# Define working directory.
+WORKDIR /etc/nginx
+
+
+WORKDIR /
+#安装python2.7
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && apt-get install -y gcc make \
+    && apt-get install -y wget unzip vim  
+RUN mkdir /opt/ipaloma \
+    && cd /opt/
+COPY ipaloma.tar.gz /opt/
+WORKDIR /opt/
+RUN tar zxvf ipaloma.tar.gz
+RUN cd /opt/ipaloma/ 
+
+RUN apt-get install -y bzip2 \
+    && cd /opt/ipaloma/ \
+    && tar jxvf Python-2.7.tar.bz2 \
+    && cd Python-2.7 \
+    && ./configure \
+    && /usr/bin/make \
+    && /usr/bin/make install
+
+RUN cd /opt/ipaloma/ \
+    && unzip Ipa-Server-ipapybase.zip \
+    && cd Ipa-Server-ipapybase \  
+    && python setup.py install \
+    && sed -ri 's/from aliyun.sls.logitem import LogItem/from aliyun.log.logitem import LogItem/' /usr/local/lib/python2.7/site-packages/ipabase/ipaalifunc.py \
+    && sed -ri 's/from aliyun.sls.slsclient import SLSClient/from aliyun.log.logclient import LogClient/' /usr/local/lib/python2.7/site-packages/ipabase/ipaalifunc.py \
+    && sed -ri 's/from aliyun.sls.getlogsrequest import GetLogsRequest/from aliyun.log.getlogsrequest import GetLogsRequest/' /usr/local/lib/python2.7/site-packages/ipabase/ipaalifunc.py \
+    && sed -ri 's/from aliyun.sls.listtopicsrequest import ListTopicsRequest/from aliyun.log.listtopicsrequest import ListTopicsRequest/' /usr/local/lib/python2.7/site-packages/ipabase/ipaalifunc.py \
+    && sed -ri 's/from aliyun.sls.listlogstoresrequest import ListLogstoresRequest/from aliyun.log.listlogstoresrequest import ListLogstoresRequest/' /usr/local/lib/python2.7/site-packages/ipabase/ipaalifunc.py \
+   && sed -ri 's/from aliyun.sls.gethistogramsrequest import GetHistogramsRequest/from aliyun.log.gethistogramsrequest import GetHistogramsRequest/' /usr/local/lib/python2.7/site-packages/ipabase/ipaalifunc.py \
+   && sed -i 's/self.sls_client = SLSClient(self.end_point, self.accesskeyid, self.accesskey)/self.sls_client = LogClient(self.end_point, self.accesskeyid, self.accesskey)/' /usr/local/lib/python2.7/site-packages/ipabase/ipaalifunc.py
+RUN cd /opt/ipaloma/ \
+    && tar zxvf gevent-1.0.2.tar.gz \
+    && cd /opt/ipaloma/gevent-1.0.2 \
+    && python setup.py install 
+RUN cd /opt/ipaloma/ \
+    && tar zxvf greenlet-0.4.11.tar.gz \
+    && cd /opt/ipaloma/greenlet-0.4.11 \
+    && python setup.py install
+RUN cd /opt/ipaloma/ \
+    && tar zxvf simplejson-3.10.0.tar.gz \
+    && cd /opt/ipaloma/simplejson-3.10.0 \
+    && python setup.py install
+RUN cd /opt/ipaloma/ \
+    && tar zxvf libevent-2.0.21-stable.tar.gz \
+    && cd /opt/ipaloma/libevent-2.0.21-stable \
+    && ./configure \
+    && make \
+    && make install
+#安装zlib
+RUN cd /opt/ipaloma/ \
+    && tar -xf zlib-1.2.8.tar \
+    && cd /opt/ipaloma/zlib-1.2.8 \
+    && ./configure \
+    && make \
+    && make install
+#WORKDIR /opt/ipaloma/
+#RUN tar jxvf gcc-4.5.1.tar.bz2
+#WORKDIR /opt/ipaloma/gcc-4.5.1
+#RUN ./configure
+#RUN make
+#RUN make install
+RUN apt-get update \
+    && apt-get upgrade -y
+RUN cd /opt/ipaloma/
+COPY hashlib.zip /opt/ipaloma/
+RUN cd /opt/ipaloma/ \
+    && unzip hashlib.zip  \
+    && cd /opt/ipaloma/hashlib-20081119 \
+    && python setup.py install
+
+#重新编译安装下python
+RUN cd /opt/ipaloma/Python-2.7 \
+    && ./configure \
+    && /usr/bin/make \
+    && /usr/bin/make install \
+    && apt-get update
+RUN cd /opt/ipaloma/ \
+    && unzip setuptools-32.3.1.zip \
+    && cd /opt/ipaloma/setuptools-32.3.1 \
+    && python setup.py install 
+RUN cd /opt/ipaloma/ \
+    && tar zxvf six-1.9.0.tar.gz \
+    && cd /opt/ipaloma/six-1.9.0 \
+    && python setup.py install
+#重新编译安装下python
+RUN apt-get update
+RUN cd /opt/ipaloma/Python-2.7 \
+    && ./configure \
+    && /usr/bin/make \
+    && /usr/bin/make install 
+#安装二进制的python bmemcached
+RUN cd /opt/ipaloma/ \
+    && unzip python-binary-memcached-master.zip \
+    && cd /opt/ipaloma/python-binary-memcached-master \
+    && python setup.py install
+#安装pymssql
+RUN cd /opt/ipaloma/ \
+    && unzip pymssql-2.1.0.zip \
+    && cd /opt/ipaloma/pymssql-2.1.0 \
+    && python setup.py install 
+#安装mysql-connector
+RUN cd /opt/ipaloma/ \
+    && unzip mysql-connector-python-1.0.11 \
+    && cd /opt/ipaloma/mysql-connector-python-1.0.11 \
+    && python setup.py install
+#安装pymysql
+RUN cd /opt/ipaloma/ \
+    && tar zxvf PyMySQL-0.7.9.tar.gz \
+    && cd /opt/ipaloma/PyMySQL-0.7.9 \
+    && python setup.py install 
+#安装requests
+RUN cd /opt/ipaloma/requests \
+    && python setup.py install
+
+
+#安装pyodbc
+RUN cd /opt/ipaloma/ \
+    && unzip pyodbc-3.0.3.zip \
+    && cd /opt/ipaloma/pyodbc-3.0.3 \
+    && python setup.py install 
+#安装google protubuf
+RUN cd /opt/ipaloma/ \
+    && unzip protobuf-3.1.0.zip 
+WORKDIR /opt/ipaloma/protobuf-3.1.0/ 
+   # && make clean \
+RUN chmod +x configure 
+RUN ./configure 
+RUN make 
+#RUN make check 
+RUN make install 
+WORKDIR /opt/ipaloma/protobuf-3.1.0/python 
+RUN python setup.py build 
+RUN python setup.py test 
+RUN python setup.py install 
+#安装阿里SDK
+RUN cd /opt/ipaloma/ \
+    && unzip aliyun-log-sdk-python-0.6.4.zip \
+    && cd /opt/ipaloma/sls-sdk-python-master-3dfd7c6d56d544a46b5b63dd1671334a05a5684b \
+    && python setup.py install
+RUN cd /opt/ipaloma/ \
+    && tar zxvf nltk-3.2.2.tar.gz \
+    && cd /opt/ipaloma/nltk-3.2.2 \
+    && python setup.py install
+RUN cd /opt/ipaloma/ \
+    && tar zxvf sqlite-autoconf-3160200.tar.gz \
+    && cd /opt/ipaloma/sqlite-autoconf-3160200 \
+    && ./configure --prefix=/usr/local \
+    && make \
+    && make install \
+    && cd /opt/ipaloma/Python-2.7 \
+    && ./configure --prefix=/usr/local \
+    && make \
+    && make install 
+RUN cd /opt/ipaloma/ \
+    && tar zxvf numpy-1.7.1.tar.gz \
+    && tar zxvf bz2file-0.98.tar.gz \
+    && tar zxvf boto-2.45.0.tar.gz \
+    && tar zxvf smart_open-1.3.5.tar.gz \
+    && cd /opt/ipaloma/numpy-1.7.1 \
+    && python setup.py install \
+    && cd /opt/ipaloma/bz2file-0.98 \
+    && python setup.py install \
+    && cd /opt/ipaloma/boto-2.45.0 \
+    && python setup.py install \
+    && cd /opt/ipaloma/smart_open-1.3.5 \
+    && python setup.py install 
+RUN apt-get install -y libblas-dev liblapack-dev libatlas-base-dev gfortran
+RUN cd /opt/ipaloma/ \
+    && tar zxvf nose-1.1.2.tar.gz \
+    && tar zxvf scipy-0.18.1.tar.gz \
+    && tar zxvf bzip2-1.0.6.tar.gz \
+    && cd /opt/ipaloma/nose-1.1.2 \
+    && python setup.py install \
+    && cd /opt/ipaloma/scipy-0.18.1 \
+    && python setup.py install \
+    && cd /opt/ipaloma/bzip2-1.0.6 \
+    && make -f Makefile-libbz2_so \
+    && make \
+    && make install \
+    && cd /opt/ipaloma/Python-2.7 \
+    && ./configure --prefix=/usr/local \
+    && make \
+    && make install
+
+   
+COPY gensim-0.13.4.1.tar.gz /opt/ipaloma/ 
+RUN cd /opt/ipaloma/ \
+    && tar zxvf gensim-0.13.4.1.tar.gz \
+    && cd /opt/ipaloma/gensim-0.13.4.1 \
+    && python setup.py install
+RUN cd /opt/ipaloma/ \
+    && tar zxvf script.tar.gz \
+    && cd /
+RUN apt-get -y install rsyslog \
+   && touch /var/log/cron.log 
+
+
+
+
+
+
+
+#设置中文编码
+ENV LC_ALL en_US.UTF-8
+ENV export LD_LIBRARY_PATH=/usr/local/lib
+RUN locale-gen en_US.UTF-8
+ENV TZ=Asia/Shanghai
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+
+
+
+
+#添加supervisord的配置文件，并复制配置文件到对应目录下面
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+#ADD supervisord.conf /etc/supervisord.conf
+
+#开放ssh端口22，redis端口6379 memcached端口11211
+
+EXPOSE 22  80 6379 11211 
+#CMD   ["/usr/sbin/sshd","-D"]
+CMD ["/usr/bin/supervisord"]
